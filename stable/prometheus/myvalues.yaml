@@ -312,9 +312,9 @@ kubeStateMetrics:
   ## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
   ##
   resources:
-    limits:
-      cpu: 10m
-      memory: 16Mi
+  #  limits:
+  #    cpu: 10m
+  #    memory: 16Mi
     requests:
       cpu: 10m
       memory: 16Mi
