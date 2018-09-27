@@ -1,0 +1,356 @@
+---
+# Source: grafana/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+type: Opaque
+data:
+  admin-user: "YWRtaW4="
+  admin-password: "bXlwYXNzd29yZA=="
+  ldap-toml: ""
+
+---
+# Source: grafana/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+data:
+  grafana.ini: |
+    [analytics]
+    check_for_updates = true
+    [auth.anonymous]
+    enabled = true
+    org_role = Viewer
+    [auth.generic_oauth]
+    allow_sign_up = true
+    allowed_domains = bmwgroup.net
+    api_url = https://cvm22424.bmwgroup.net/auth/realms/kubernetes-mykc-prod/protocol/openid-connect/userinfo
+    auth_url = https://cvm22424.bmwgroup.net/auth/realms/kubernetes-mykc-prod/protocol/openid-connect/auth
+    client_id = central-grafana
+    client_secret = 7139acca-8776-4392-8b4f-93fffdbacca5
+    enabled = true
+    scopes = 
+    token_url = https://cvm22424.bmwgroup.net/auth/realms/kubernetes-mykc-prod/protocol/openid-connect/token
+    [grafana_net]
+    url = https://grafana.net
+    [log]
+    mode = console
+    [paths]
+    data = /var/lib/grafana/data
+    logs = /var/log/grafana
+    plugins = /var/lib/grafana/plugins
+    provisioning = /etc/grafana/provisioning
+    [server]
+    domain = cvm22424.bmwgroup.net
+    root_url = https://%(domain)s:%(http_port)s/central/grafana
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+    - access: proxy
+      isDefault: true
+      name: Prometheus-DEV
+      type: prometheus
+      url: http://160.46.188.213:30900
+    - access: proxy
+      isDefault: false
+      name: Prometheus-BUS
+      type: prometheus
+      url: http://160.46.188.213:30901
+    
+
+---
+# Source: grafana/templates/serviceaccount.yaml
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    heritage: Tiller
+    release: RELEASE-NAME
+  name: RELEASE-NAME-grafana
+
+---
+# Source: grafana/templates/clusterrole.yaml
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+  name: RELEASE-NAME-grafana-clusterrole
+rules: []
+
+---
+# Source: grafana/templates/clusterrolebinding.yaml
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: RELEASE-NAME-grafana-clusterrolebinding
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+subjects:
+  - kind: ServiceAccount
+    name: RELEASE-NAME-grafana
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: RELEASE-NAME-grafana-clusterrole
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Source: grafana/templates/role.yaml
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    heritage: Tiller
+    release: RELEASE-NAME
+rules:
+- apiGroups:      ['extensions']
+  resources:      ['podsecuritypolicies']
+  verbs:          ['use']
+  resourceNames:  [RELEASE-NAME-grafana]
+
+---
+# Source: grafana/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    heritage: Tiller
+    release: RELEASE-NAME
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: RELEASE-NAME-grafana
+subjects:
+- kind: ServiceAccount
+  name: RELEASE-NAME-grafana
+---
+# Source: grafana/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+spec:
+  type: NodePort
+  ports:
+    - name: service
+      port: 80
+      protocol: TCP
+      targetPort: 3000
+
+      nodePort: 32000
+
+  selector:
+    app: grafana
+    release: RELEASE-NAME
+
+---
+# Source: grafana/templates/deployment.yaml
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+      release: RELEASE-NAME
+  strategy:
+    type: RollingUpdate    
+  template:
+    metadata:
+      labels:
+        app: grafana
+        release: RELEASE-NAME
+    spec:
+      serviceAccountName: RELEASE-NAME-grafana
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        
+      containers:
+        - name: grafana
+          image: "grafana/grafana:5.2.4"
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: config
+              mountPath: "/etc/grafana/grafana.ini"
+              subPath: grafana.ini
+            - name: ldap
+              mountPath: "/etc/grafana/ldap.toml"
+              subPath: ldap.toml
+            - name: config
+              mountPath: "/etc/grafana/provisioning/datasources/datasources.yaml"
+              subPath: datasources.yaml
+            - name: storage
+              mountPath: "/var/lib/grafana"
+              subPath: 
+          ports:
+            - name: service
+              containerPort: 80
+              protocol: TCP
+            - name: grafana
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: RELEASE-NAME-grafana
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: RELEASE-NAME-grafana
+                  key: admin-password
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 10
+            periodSeconds: 10
+          resources:
+            {}
+            
+      volumes:
+        - name: config
+          configMap:
+            name: RELEASE-NAME-grafana
+        - name: ldap
+          secret:
+            secretName: RELEASE-NAME-grafana
+            items:
+              - key: ldap-toml
+                path: ldap.toml
+        - name: storage
+          persistentVolumeClaim:
+            claimName: data-central-grafana
+
+---
+# Source: grafana/templates/ingress.yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    release: RELEASE-NAME
+    heritage: Tiller
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    
+spec:
+  tls:
+    - hosts:
+        - "cvm22424.bmwgroup.net"
+      secretName: chart-example-tls
+  rules:
+    - host: cvm22424.bmwgroup.net
+      http:
+        paths:
+          - path: /central/grafana
+            backend:
+              serviceName: RELEASE-NAME-grafana
+              servicePort: 80
+
+---
+# Source: grafana/templates/podsecuritypolicy.yaml
+
+apiVersion: extensions/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: RELEASE-NAME-grafana
+  labels:
+    app: grafana
+    chart: grafana-1.14.8
+    heritage: Tiller
+    release: RELEASE-NAME
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'docker/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName:  'docker/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName:  'runtime/default'
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+
+---
+# Source: grafana/templates/configmap-dashboard-provider.yaml
+
+
+---
+# Source: grafana/templates/dashboards-json-configmap.yaml
+
+
+---
+# Source: grafana/templates/pvc.yaml
+
