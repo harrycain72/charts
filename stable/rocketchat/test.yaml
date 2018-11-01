@@ -1,0 +1,165 @@
+---
+# Source: rocketchat/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: RELEASE-NAME-rocketchat
+  labels:
+    app: rocketchat
+    chart: "rocketchat-0.1.5"
+    release: "RELEASE-NAME"
+    heritage: "Tiller"
+type: Opaque
+data:
+  mail-url: "c210cDovLyUhcyg8bmlsPik6JSFzKDxuaWw+KUAlIXMoPG5pbD4pOiUhcyg8bmlsPik="
+  
+  mongo-uri: "bW9uZ29kYjovL3Jvb3Q6bXlwYXNzdzByZCFAY2VudHJhbC1tb25nb2RiLmNlbnRyYWwuc3ZjLW1vbmdvZGI6MjcwMTcvcm9ja2V0Y2hhdA=="
+  
+
+---
+# Source: rocketchat/templates/pvc.yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: RELEASE-NAME-rocketchat
+  labels:
+    app: rocketchat
+    chart: "rocketchat-0.1.5"
+    release: "RELEASE-NAME"
+    heritage: "Tiller"
+spec:
+  accessModes:
+    - "ReadWriteOnce"
+  resources:
+    requests:
+      storage: "8Gi"
+---
+# Source: rocketchat/templates/serviceaccount.yaml
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: rocketchat
+    chart: "rocketchat-0.1.5"
+    heritage: Tiller
+    release: RELEASE-NAME
+  name: RELEASE-NAME-rocketchat
+---
+# Source: rocketchat/templates/svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: RELEASE-NAME-rocketchat
+  labels:
+    app: rocketchat
+    chart: "rocketchat-0.1.5"
+    release: "RELEASE-NAME"
+    heritage: "Tiller"
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: http
+  selector:
+    app: rocketchat
+    release: "RELEASE-NAME"
+
+---
+# Source: rocketchat/templates/deployment.yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: RELEASE-NAME-rocketchat
+  labels:
+    app: rocketchat
+    chart: "rocketchat-0.1.5"
+    release: "RELEASE-NAME"
+    heritage: "Tiller"
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rocketchat
+        release: "RELEASE-NAME"
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+      containers:
+      - name: RELEASE-NAME-rocketchat
+        image: "rocket.chat:0.69.1"
+        imagePullPolicy: ""
+        env:
+        - name: DEPLOY_PLATFORM
+          value: helm-chart
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MONGO_URL
+        
+          valueFrom:
+            secretKeyRef:
+              name: RELEASE-NAME-rocketchat
+              key: mongo-uri
+        
+        
+        - name: MAIL_URL
+          valueFrom:
+            secretKeyRef:
+              name: RELEASE-NAME-rocketchat
+              key: mail-url
+        - name: From_Email
+          value: 
+        - name: Jitsi_Chrome_Extension
+          value: 
+        - name: Jitsi_Domain
+          value: "meet.jit.si"
+        - name: Jitsi_Enable_Channels
+          value: "false"
+        - name: Jitsi_Enabled
+          value: "false"
+        - name: Jitsi_Open_New_Window
+          value: "false"
+        - name: Jitsi_URL_Room_Prefix
+          value: "RocketChat"
+        - name: SMTP_Host
+          value: 
+        - name: SMTP_Password
+          value: 
+        - name: SMTP_Port
+          value: 
+        - name: SMTP_Username
+          value: 
+        - name: WebRTC_Enable_Channel
+          value: "false"
+        - name: WebRTC_Enable_Direct
+          value: "false"
+        - name: WebRTC_Enable_Private
+          value: "false"
+        ports:
+        - name: http
+          containerPort: 3000
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+        resources:
+          null
+          
+        volumeMounts:
+        - name: rocket-data
+          mountPath: /app/uploads
+      volumes:
+      - name: rocket-data
+        persistentVolumeClaim:
+          claimName: RELEASE-NAME-rocketchat
+
+
+---
+# Source: rocketchat/templates/ingress.yaml
+
